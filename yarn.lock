@@ -632,6 +632,19 @@
     "@sentry/types" "5.30.0"
     tslib "^1.9.3"
 
+"@shibaswap/sdk@^0.0.6":
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/@shibaswap/sdk/-/sdk-0.0.6.tgz#df32b953f0a359d8ca1b116174cfb59df436178e"
+  integrity sha512-q4Rfi9d1q2k0CCVnb3DMvy6+my8CSrjHlovV6MmisTwrmAiC4s4FSNN4n8fPS/gtMdnDs4eTOcuaLJlECGUekg==
+  dependencies:
+    "@uniswap/v2-core" "^1.0.0"
+    big.js "^5.2.2"
+    decimal.js-light "^2.5.0"
+    jsbi "^3.1.1"
+    tiny-invariant "^1.1.0"
+    tiny-warning "^1.0.3"
+    toformat "^2.0.0"
+
 "@sindresorhus/is@^0.14.0":
   version "0.14.0"
   resolved "https://registry.yarnpkg.com/@sindresorhus/is/-/is-0.14.0.tgz#9fb3a3cf3132328151f353de4632e01e52102bea"

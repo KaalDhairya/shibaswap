@@ -9,3 +9,8 @@ package-lock.json
 coverage.json
 .env
 .DS_Store
+/.idea/.gitignore
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/shibaswap-contracts.iml
+/.idea/vcs.xml

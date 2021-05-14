@@ -1,9 +1,9 @@
 {
-  "name": "@sushiswap/core",
-  "version": "1.4.2",
+  "name": "@shibaswap/core",
+  "version": "0.0.1",
   "license": "MIT",
   "types": "./types/index.ts",
-  "description": "Core contracts for the SushiSwap protocol",
+  "description": "Core contracts for the Shibaswap protocol",
   "files": [
     "abi",
     "artifacts",
@@ -15,14 +15,14 @@
   "author": "",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sushiswap/sushiswap.git"
+    "url": "git+https://github.com/shibaswap/shibaswap.git"
   },
   "bugs": {
-    "url": "https://github.com/sushiswap/sushiswap/issues"
+    "url": "https://github.com/shibaswap/shibaswap/issues"
   },
-  "homepage": "https://github.com/sushiswap/sushiswap#readme",
+  "homepage": "https://github.com/shibaswap/shibaswap#readme",
   "keywords": [
-    "sushiswap",
+    "shibaswap",
     "ethereum"
   ],
   "scripts": {
@@ -64,6 +64,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.0",
     "@openzeppelin/contracts": "^3.1.0",
     "@sushiswap/sdk": "^4.1.1",
+    "@shibaswap/sdk": "^0.0.6",
     "@tenderly/hardhat-tenderly": "^1.0.0",
     "@typechain/ethers-v5": "^5.0.0",
     "@types/mocha": "^8.2.1",
