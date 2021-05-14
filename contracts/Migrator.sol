@@ -26,7 +26,7 @@ contract Migrator {
     }
 
     function migrate(IUniswapV2Pair orig) public returns (IUniswapV2Pair) {
-        require(msg.sender == chef, "not from master chef");
+        require(msg.sender == chef, "not from top dog");
         require(block.number >= notBeforeBlock, "too early to migrate");
         require(orig.factory() == oldFactory, "not from old factory");
         address token0 = orig.token0();
