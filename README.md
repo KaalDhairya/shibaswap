@@ -1,10 +1,10 @@
-# SushiSwap
+# ShibaSwap
 
-https://sushi.com/
+https://shibatoken.com/
 
 ## Deployed Contracts
 
-https://dev.sushi.com/sushiswap/contracts
+https://dev.shiba.com/shibaswap/contracts
 
 ## Docs
 
