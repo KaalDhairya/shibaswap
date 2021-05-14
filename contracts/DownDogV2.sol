@@ -9,7 +9,6 @@ import "@boringcrypto/boring-solidity/contracts/BoringOwnable.sol";
 import "./libraries/SignedSafeMath.sol";
 import "./interfaces/IRewarderTDog.sol";
 import "./interfaces/ITopDog.sol";
-import "./TopDog.sol";
 
 interface IMigratorShibaSwap {
     // Take the current LP token address and return the new LP token address.
@@ -19,16 +18,16 @@ interface IMigratorShibaSwap {
 
 /// @notice The (older) TopDog contract gives out a constant number of BONE tokens per block.
 /// It is the only address with minting rights for BONE.
-/// The idea for this TopDog V2 (MCV2) contract is therefore to be the owner of a dummy token
-/// that is deposited into the TopDog V1 (MCV1) contract.
-/// The allocation point for this pool on MCV1 is the total allocation point for all pools that receive double incentives.
-contract TopDogV2 is BoringOwnable, BoringBatchable {
+/// The idea for this TopDog V2 (TDV2) contract is therefore to be the owner of a dummy token
+/// that is deposited into the TopDog V1 (TDV1) contract.
+/// The allocation point for this pool on TDV1 is the total allocation point for all pools that receive double incentives.
+contract DownDogV2 is BoringOwnable, BoringBatchable {
     using BoringMath for uint256;
     using BoringMath128 for uint128;
     using BoringERC20 for IERC20;
     using SignedSafeMath for int256;
 
-    /// @notice Info of each MCV2 user.
+    /// @notice Info of each TDV2 user.
     /// `amount` LP token amount the user has provided.
     /// `rewardDebt` The amount of BONE entitled to the user.
     struct UserInfo {
@@ -36,27 +35,23 @@ contract TopDogV2 is BoringOwnable, BoringBatchable {
         int256 rewardDebt;
     }
 
-    /// @notice Info of each MCV2 pool.
+    /// @notice Info of each TDV2 pool.
     /// `allocPoint` The amount of allocation points assigned to the pool.
     /// Also known as the amount of BONE to distribute per block.
     struct PoolInfo {
         uint128 accBonePerShare;
-        uint64 lastRewardBlock;
+        uint64 lastRewardTime;
         uint64 allocPoint;
     }
 
-    /// @notice Address of TDV1 contract.
-    ITopDog public immutable TOP_DOG;
     /// @notice Address of BONE contract.
     IERC20 public immutable BONE;
-    /// @notice The index of TDV2 master pool in TDV1.
-    uint256 public immutable MASTER_PID;
     // @notice The migrator contract. It has a lot of power. Can only be set through governance (owner).
     IMigratorShibaSwap public migrator;
 
     /// @notice Info of each TDV2 pool.
     PoolInfo[] public poolInfo;
-    /// @notice Address of the LP token for each MCV2 pool.
+    /// @notice Address of the LP token for each TDV2 pool.
     IERC20[] public lpToken;
     /// @notice Address of each `IRewarderTDog` contract in TDV2.
     IRewarderTDog[] public rewarder;
@@ -66,7 +61,7 @@ contract TopDogV2 is BoringOwnable, BoringBatchable {
     /// @dev Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint;
 
-    uint256 private constant TOPDOG_BONE_PER_BLOCK = 1e20;
+    uint256 public bonePerSecond;
     uint256 private constant ACC_BONE_PRECISION = 1e12;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
@@ -75,32 +70,15 @@ contract TopDogV2 is BoringOwnable, BoringBatchable {
     event Harvest(address indexed user, uint256 indexed pid, uint256 amount);
     event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IERC20 indexed lpToken, IRewarderTDog indexed rewarder);
     event LogSetPool(uint256 indexed pid, uint256 allocPoint, IRewarderTDog indexed rewarder, bool overwrite);
-    event LogUpdatePool(uint256 indexed pid, uint64 lastRewardBlock, uint256 lpSupply, uint256 accBonePerShare);
-    event LogInit();
+    event LogUpdatePool(uint256 indexed pid, uint64 lastRewardTime, uint256 lpSupply, uint256 accBonePerShare);
+    event LogBonePerSecond(uint256 bonePerSecond);
 
-    /// @param _TOP_DOG The ShibaSwap TDV1 contract address.
     /// @param _bone The BONE token contract address.
-    /// @param _MASTER_PID The pool ID of the dummy token on the base TDV1 contract.
-    constructor(ITopDog _TOP_DOG, IERC20 _bone, uint256 _MASTER_PID) public {
-        TOP_DOG = _TOP_DOG;
+    constructor(IERC20 _bone) public {
         BONE = _bone;
-        MASTER_PID = _MASTER_PID;
     }
 
-    /// @notice Deposits a dummy token to `TOP_DOG` TDV1. This is required because TDV1 holds the minting rights for BONE.
-    /// Any balance of transaction sender in `dummyToken` is transferred.
-    /// The allocation point for the pool on TDV1 is the total allocation point for all pools that receive double incentives.
-    /// @param dummyToken The address of the ERC-20 token to deposit into TDV1.
-    function init(IERC20 dummyToken) external {
-        uint256 balance = dummyToken.balanceOf(msg.sender);
-        require(balance != 0, "TopDogV2: Balance must exceed 0");
-        dummyToken.safeTransferFrom(msg.sender, address(this), balance);
-        dummyToken.approve(address(TOP_DOG), balance);
-        TOP_DOG.deposit(MASTER_PID, balance);
-        emit LogInit();
-    }
-
-    /// @notice Returns the number of MCV2 pools.
+    /// @notice Returns the number of TDV2 pools.
     function poolLength() public view returns (uint256 pools) {
         pools = poolInfo.length;
     }
@@ -111,14 +89,13 @@ contract TopDogV2 is BoringOwnable, BoringBatchable {
     /// @param _lpToken Address of the LP ERC-20 token.
     /// @param _rewarder Address of the rewarder delegate.
     function add(uint256 allocPoint, IERC20 _lpToken, IRewarderTDog _rewarder) public onlyOwner {
-        uint256 lastRewardBlock = block.number;
         totalAllocPoint = totalAllocPoint.add(allocPoint);
         lpToken.push(_lpToken);
         rewarder.push(_rewarder);
 
         poolInfo.push(PoolInfo({
             allocPoint: allocPoint.to64(),
-            lastRewardBlock: lastRewardBlock.to64(),
+            lastRewardTime: block.timestamp.to64(),
             accBonePerShare: 0
         }));
         emit LogPoolAddition(lpToken.length.sub(1), allocPoint, _lpToken, _rewarder);
@@ -134,6 +111,13 @@ contract TopDogV2 is BoringOwnable, BoringBatchable {
         poolInfo[_pid].allocPoint = _allocPoint.to64();
         if (overwrite) { rewarder[_pid] = _rewarder; }
         emit LogSetPool(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
+    }
+
+    /// @notice Sets the bone per second to be distributed. Can only be called by the owner.
+    /// @param _bonePerSecond The amount of Bone to be distributed per second.
+    function setBonePerSecond(uint256 _bonePerSecond) public onlyOwner {
+        bonePerSecond = _bonePerSecond;
+        emit LogBonePerSecond(_bonePerSecond);
     }
 
     /// @notice Set the `migrator` contract. Can only be called by the owner.
@@ -163,9 +147,9 @@ contract TopDogV2 is BoringOwnable, BoringBatchable {
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accBonePerShare = pool.accBonePerShare;
         uint256 lpSupply = lpToken[_pid].balanceOf(address(this));
-        if (block.number > pool.lastRewardBlock && lpSupply != 0) {
-            uint256 blocks = block.number.sub(pool.lastRewardBlock);
-            uint256 boneReward = blocks.mul(bonePerBlock()).mul(pool.allocPoint) / totalAllocPoint;
+        if (block.timestamp > pool.lastRewardTime && lpSupply != 0) {
+            uint256 time = block.timestamp.sub(pool.lastRewardTime);
+            uint256 boneReward = time.mul(bonePerSecond).mul(pool.allocPoint) / totalAllocPoint;
             accBonePerShare = accBonePerShare.add(boneReward.mul(ACC_BONE_PRECISION) / lpSupply);
         }
         pending = int256(user.amount.mul(accBonePerShare) / ACC_BONE_PRECISION).sub(user.rewardDebt).toUInt256();
@@ -180,27 +164,21 @@ contract TopDogV2 is BoringOwnable, BoringBatchable {
         }
     }
 
-    /// @notice Calculates and returns the `amount` of BONE per block.
-    function bonePerBlock() public view returns (uint256 amount) {
-        amount = uint256(TOPDOG_BONE_PER_BLOCK)
-            .mul(TOP_DOG.poolInfo(MASTER_PID).allocPoint) / TOP_DOG.totalAllocPoint();
-    }
-
     /// @notice Update reward variables of the given pool.
     /// @param pid The index of the pool. See `poolInfo`.
     /// @return pool Returns the pool that was updated.
     function updatePool(uint256 pid) public returns (PoolInfo memory pool) {
         pool = poolInfo[pid];
-        if (block.number > pool.lastRewardBlock) {
+        if (block.timestamp > pool.lastRewardTime) {
             uint256 lpSupply = lpToken[pid].balanceOf(address(this));
             if (lpSupply > 0) {
-                uint256 blocks = block.number.sub(pool.lastRewardBlock);
-                uint256 boneReward = blocks.mul(bonePerBlock()).mul(pool.allocPoint) / totalAllocPoint;
+                uint256 time = block.timestamp.sub(pool.lastRewardTime);
+                uint256 boneReward = time.mul(bonePerSecond).mul(pool.allocPoint) / totalAllocPoint;
                 pool.accBonePerShare = pool.accBonePerShare.add((boneReward.mul(ACC_BONE_PRECISION) / lpSupply).to128());
             }
-            pool.lastRewardBlock = block.number.to64();
+            pool.lastRewardTime = block.timestamp.to64();
             poolInfo[pid] = pool;
-            emit LogUpdatePool(pid, pool.lastRewardBlock, lpSupply, pool.accBonePerShare);
+            emit LogUpdatePool(pid, pool.lastRewardTime, lpSupply, pool.accBonePerShare);
         }
     }
 
@@ -301,11 +279,6 @@ contract TopDogV2 is BoringOwnable, BoringBatchable {
 
         emit Withdraw(msg.sender, pid, amount, to);
         emit Harvest(msg.sender, pid, _pendingBone);
-    }
-
-    /// @notice Harvests BONE from `TOP_DOG` TDV1 and pool `MASTER_PID` to this TDV2 contract.
-    function harvestFromTopDog() public {
-        TOP_DOG.deposit(MASTER_PID, 0);
     }
 
     /// @notice Withdraw without caring about rewards. EMERGENCY ONLY.
